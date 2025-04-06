@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Presenter View</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+    <style>
+      :root {
+        --primary: #008766;
+        --dark: #12332e;
+        --light: #f8f9fa;
+        --accent: #faf0dc;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      body {
+        background-color: var(--dark);
+        color: white;
+        min-height: 100vh;
+        padding: 2rem;
+        transition: all 0.3s ease;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      h1 {
+        color: white;
+        font-size: 2rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status-badge {
+        font-size: 0.9rem;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-badge i.connected {
+        color: #2ec4b6;
+      }
+
+      .status-badge i.disconnected {
+        color: #e71d36;
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+      }
+
+      button {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      button:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+
+      .delete-btn {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: transparent;
+        border: none;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+        opacity: 0.7;
+      }
+
+      .delete-btn:hover {
+        opacity: 1;
+      }
+
+      .question-counter {
+        margin-left: auto;
+        font-size: 1.1rem;
+        opacity: 0.8;
+      }
+
+      #questionsContainer {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+      }
+
+      .question {
+        background-color: #008766;
+        padding: 1.5rem;
+        border-radius: 12px;
+        font-size: 1.8rem;
+        line-height: 1.4;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        position: relative;
+        animation: fadeIn 0.5s ease-out;
+        border-left: 4px solid var(--primary);
+      }
+
+      .question:before {
+        content: '"';
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 2.5rem;
+        color: rgba(255, 255, 255, 0.1);
+      }
+
+      .time-badge {
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        font-size: 0.8rem;
+        opacity: 0.6;
+      }
+
+      .question.answered {
+        opacity: 0.5;
+        text-decoration: line-through;
+        /* pointer-events: none; */
+      }
+
+      .no-questions {
+        text-align: center;
+        opacity: 0.7;
+        font-size: 1.5rem;
+        margin-top: 4rem;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .dark-mode {
+        background-color: #121212;
+      }
+
+      .light-mode {
+        background-color: white;
+        color: #333;
+      }
+
+      .light-mode header {
+        border-bottom-color: rgba(0, 0, 0, 0.1);
+      }
+
+      .light-mode h1 {
+        color: #333;
+      }
+
+      .light-mode .question {
+        background-color: #f0f2f5;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        color: #333;
+      }
+
+      .light-mode button {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: #333;
+      }
+
+      .light-mode button:hover {
+        background-color: rgba(0, 0, 0, 0.2);
+      }
+
+      .large-text .question {
+        font-size: 2.2rem;
+      }
+
+      .small-text .question {
+        font-size: 1.5rem;
+      }
+      #qrCodeContainer {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        z-index: 1000; /* Ensure it's on top */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>
+          <i class="fas fa-comments"></i>
+          Livefrågor
+        </h1>
+        <div class="status-badge">
+          <i id="statusIcon" class="fas fa-circle disconnected"></i>
+          <span id="connectionStatus">Ansluter...</span>
+        </div>
+      </header>
+
+      <div class="controls">
+        <button id="clearBtn"><i class="fas fa-trash"></i> Rensa alla</button>
+        <button id="themeToggle"><i class="fas fa-moon"></i> Mörkt läge</button>
+        <button id="fontSizeBtn">
+          <i class="fas fa-text-height"></i> Textstorlek
+        </button>
+        <button id="qrToggleBtn"><i class="fas fa-qrcode"></i> QR-kod</button>
+        <div class="question-counter">
+          <span id="questionCount">0</span> frågor
+        </div>
+      </div>
+
+      <div
+        id="qrCodeContainer"
+        style="
+          display: none;
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: white;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        "
+      ></div>
+
+      <div id="questionsContainer">
+        <div class="no-questions" id="noQuestions">
+          <i class="fas fa-comment-slash"></i>
+          <p>Inga frågor än</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- MQTT.js -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <script>
+      // Samma JS-kod som tidigare – endast ändrade textsträngar nedan
+
+      const questionsContainer = document.getElementById('questionsContainer')
+      const noQuestionsEl = document.getElementById('noQuestions')
+      const statusIcon = document.getElementById('statusIcon')
+      const connectionStatus = document.getElementById('connectionStatus')
+      const questionCountEl = document.getElementById('questionCount')
+      const clearBtn = document.getElementById('clearBtn')
+      const themeToggle = document.getElementById('themeToggle')
+      const fontSizeBtn = document.getElementById('fontSizeBtn')
+
+      let isDarkMode = true
+      let fontSizeMode = 'normal'
+      let questionCount = 0
+
+      const client = mqtt.connect('wss://test.mosquitto.org:8081')
+
+      client.on('connect', () => {
+        console.log('Ansluten till MQTT-broker')
+        statusIcon.classList.remove('disconnected')
+        statusIcon.classList.add('connected')
+        connectionStatus.textContent = 'Ansluten'
+
+        client.subscribe('question/topic/ad2j-123jf-343juv', (err) => {
+          if (err) {
+            console.error('Prenumerationsfel', err)
+            statusIcon.classList.remove('connected')
+            statusIcon.classList.add('disconnected')
+            connectionStatus.textContent = 'Fel vid prenumeration'
+          }
+        })
+      })
+
+      client.on('error', (err) => {
+        console.error('Anslutningsfel', err)
+        statusIcon.classList.remove('connected')
+        statusIcon.classList.add('disconnected')
+        connectionStatus.textContent = 'Anslutningsfel'
+      })
+
+      client.on('offline', () => {
+        statusIcon.classList.remove('connected')
+        statusIcon.classList.add('disconnected')
+        connectionStatus.textContent = 'Frånkopplad'
+      })
+
+      client.on('message', (topic, message) => {
+        if (topic === 'question/topic/ad2j-123jf-343juv') {
+          const questionText = message.toString()
+          addQuestion(questionText)
+        }
+      })
+
+      function addQuestion(text) {
+        noQuestionsEl.style.display = 'none'
+
+        const now = new Date()
+        const timeStr = now.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+
+        const questionEl = document.createElement('div')
+        questionEl.className = 'question'
+        questionEl.textContent = text
+
+        const timeBadge = document.createElement('div')
+        timeBadge.className = 'time-badge'
+        timeBadge.textContent = timeStr
+        questionEl.appendChild(timeBadge)
+
+        // Add delete button
+        const deleteBtn = document.createElement('button')
+        deleteBtn.innerHTML = '<i class="fas fa-trash"></i>'
+        deleteBtn.className = 'delete-btn'
+        questionEl.appendChild(deleteBtn)
+
+        // Add click event for deleting question
+        deleteBtn.addEventListener('click', (event) => {
+          event.stopPropagation() // Prevent the question click event from firing
+          questionEl.remove()
+          questionCount--
+          questionCountEl.textContent = questionCount
+
+          if (questionCount === 0) {
+            noQuestionsEl.style.display = 'block'
+          }
+        })
+
+        // Lägg till click-event för att toggla "besvarad" status
+        questionEl.addEventListener('click', () => {
+          questionEl.classList.toggle('answered') // Toggle classen 'answered'
+        })
+
+        questionsContainer.prepend(questionEl)
+
+        questionCount++
+        questionCountEl.textContent = questionCount
+      }
+
+      const qrToggleBtn = document.getElementById('qrToggleBtn')
+      const qrCodeContainer = document.getElementById('qrCodeContainer')
+      let qrCodeGenerated = false // Track if the QR code has been generated
+
+      qrToggleBtn.addEventListener('click', () => {
+        if (qrCodeContainer.style.display === 'none') {
+          qrCodeContainer.style.display = 'block'
+          if (!qrCodeGenerated) {
+            generateQRCode()
+            qrCodeGenerated = true
+          }
+        } else {
+          qrCodeContainer.style.display = 'none'
+        }
+      })
+
+      function generateQRCode() {
+        let currentUrl = window.location.href
+        // Get the index of the last '/'
+        const lastSlashIndex = currentUrl.lastIndexOf('/')
+
+        if (lastSlashIndex !== -1) {
+          // Keep the root address and replace the last part with "ask.html"
+          currentUrl = currentUrl.substring(0, lastSlashIndex + 1) + 'ask.html'
+        }
+
+        new QRCode(qrCodeContainer, {
+          text: currentUrl,
+          width: 512,
+          height: 512,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.H,
+        })
+
+        // Add click listener to close the QR code
+        qrCodeContainer.addEventListener('click', () => {
+          qrCodeContainer.style.display = 'none'
+        })
+      }
+
+      clearBtn.addEventListener('click', () => {
+        questionsContainer.innerHTML = ''
+        questionsContainer.appendChild(noQuestionsEl)
+        noQuestionsEl.style.display = 'block'
+        questionCount = 0
+        questionCountEl.textContent = '0'
+      })
+
+      themeToggle.addEventListener('click', () => {
+        const body = document.body
+        if (isDarkMode) {
+          body.classList.add('light-mode')
+          themeToggle.innerHTML = '<i class="fas fa-sun"></i> Ljust läge'
+          isDarkMode = false
+        } else {
+          body.classList.remove('light-mode')
+          themeToggle.innerHTML = '<i class="fas fa-moon"></i> Mörkt läge'
+          isDarkMode = true
+        }
+      })
+
+      fontSizeBtn.addEventListener('click', () => {
+        const body = document.body
+
+        if (fontSizeMode === 'normal') {
+          body.classList.add('large-text')
+          body.classList.remove('small-text')
+          fontSizeMode = 'large'
+        } else if (fontSizeMode === 'large') {
+          body.classList.add('small-text')
+          body.classList.remove('large-text')
+          fontSizeMode = 'small'
+        } else {
+          body.classList.remove('small-text', 'large-text')
+          fontSizeMode = 'normal'
+        }
+      })
+    </script>
+  </body>
+</html>
