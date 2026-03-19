@@ -17,44 +17,32 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="ask-page">
-    <main class="page-shell ask-shell">
-      <section class="ask-card" aria-label="Frågeformulär">
-        <div class="ask-topline">
-          <span class="ask-kicker">Livefråga</span>
-          <div class="connection-badge" data-state="disconnected" aria-live="polite">
-            <i class="fas fa-circle" aria-hidden="true"></i>
-            <span id="connectionText">Ej ansluten</span>
-          </div>
-        </div>
+    <main class="ask-layout">
+      <header class="ask-hero">
+        <p class="eyebrow">Livefråga</p>
+        <h1 class="page-title">Ställ en fråga</h1>
+        <p class="page-intro">Skriv kort och tydligt. Frågan visas direkt på skärmen.</p>
+      </header>
 
-        <div class="ask-intro">
-          <h1 class="ask-title">Ställ en fråga</h1>
-        </div>
-
+      <section class="ask-card" aria-label="Question form">
         <form id="questionForm" class="ask-form">
-          <label class="ask-field" for="questionInput">
-            <div class="ask-field-head">
-              <span class="ask-label">Din fråga</span>
-              <span class="ask-count"><span id="charCount">0</span>/200</span>
-            </div>
+          <div class="ask-input-wrap">
             <textarea
               id="questionInput"
-              class="ask-input"
               placeholder="Skriv din fråga här..."
               maxlength="200"
+              rows="6"
             ></textarea>
-          </label>
-
-          <div class="ask-actions">
-            <p class="ask-help">Visas direkt hos presentatören.</p>
-            <button type="submit" id="submitBtn" class="ask-submit" disabled>
-              <i class="fas fa-paper-plane" aria-hidden="true"></i>
-              Skicka fråga
-            </button>
           </div>
+          <div class="ask-meta">
+            <span class="ask-count"><span id="charCount">0</span>/200</span>
+            <strong class="connection-badge" data-state="disconnected" aria-live="polite">
+              <span id="connectionText">Ansluter...</span>
+            </strong>
+          </div>
+          <div id="statusMessage" class="status-message" aria-live="polite"></div>
+          <button class="button-primary ask-submit" type="submit" id="submitBtn" disabled>Skicka</button>
         </form>
-
-        <div class="ask-status" id="statusMessage" data-visible="false" aria-live="polite"></div>
       </section>
     </main>
 
@@ -102,8 +90,7 @@
         }
 
         submitBtn.disabled = true
-        submitBtn.innerHTML =
-          '<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Skickar...'
+        submitBtn.textContent = 'Skickar...'
 
         try {
           client.publish('question/topic/ad2j-123jf-343juv', question, (err) => {
@@ -117,15 +104,13 @@
             }
 
             submitBtn.disabled = questionInput.value.trim().length === 0
-            submitBtn.innerHTML =
-              '<i class="fas fa-paper-plane" aria-hidden="true"></i> Skicka fråga'
+            submitBtn.textContent = 'Skicka fråga'
           })
         } catch (error) {
           console.error('Undantag vid publicering', error)
           showStatus('Kunde inte skicka frågan. Försök igen.', 'error')
           submitBtn.disabled = false
-          submitBtn.innerHTML =
-            '<i class="fas fa-paper-plane" aria-hidden="true"></i> Skicka fråga'
+          submitBtn.textContent = 'Skicka fråga'
         }
       })
 

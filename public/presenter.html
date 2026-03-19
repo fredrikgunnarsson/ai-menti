@@ -18,76 +18,72 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="presenter-page">
-    <main class="page-shell presenter-stack">
+    <main class="presenter-frame">
       <section class="presenter-topbar">
-        <div class="presenter-head">
-          <div class="presenter-head-copy">
-            <span class="presenter-kicker">Livefrågor</span>
-            <h1 class="presenter-title">Presentatörsvy</h1>
-          </div>
-          <div class="presenter-meta">
-            <div class="connection-badge" data-state="disconnected">
-              <i class="fas fa-circle" aria-hidden="true"></i>
-              <span id="connectionStatus">Ansluter...</span>
-            </div>
-            <div class="presenter-count">
-              <span id="questionCount">0</span>
+        <header class="presenter-hero">
+          <p class="eyebrow">Livefrågor</p>
+          <div class="presenter-meta" aria-label="Status">
+            <span class="presenter-stat">
+              <strong id="questionCount">0</strong>
               <span>frågor</span>
-            </div>
+            </span>
+            <span class="presenter-stat connection-badge" data-state="disconnected">
+              <span id="connectionStatus">Ansluter...</span>
+            </span>
           </div>
-        </div>
+        </header>
 
-        <div class="presenter-controls" aria-label="Presentatörskontroller">
-          <button id="clearBtn" class="presenter-control">
-            <i class="fas fa-trash" aria-hidden="true"></i>
-            Rensa alla
-          </button>
-          <button id="themeToggle" class="presenter-control">
-            <i class="fas fa-sun" aria-hidden="true"></i>
-            Ljust läge
-          </button>
-          <button id="fontSizeBtn" class="presenter-control">
-            <i class="fas fa-text-height" aria-hidden="true"></i>
-            Textstorlek
-          </button>
-          <button id="qrToggleBtn" class="presenter-control">
-            <i class="fas fa-qrcode" aria-hidden="true"></i>
-            Visa QR-kod
-          </button>
-        </div>
+        <aside class="presenter-controls" aria-label="Presenter controls">
+          <button class="presenter-control button-secondary" id="clearBtn" type="button">Rensa alla</button>
+          <button class="presenter-control button-secondary" id="themeToggle" type="button">Mörkt läge</button>
+          <button class="presenter-control button-secondary" id="fontSizeBtn" type="button">Textstorlek</button>
+          <button class="presenter-control button-primary" id="qrToggleBtn" type="button">Anslut publik</button>
+        </aside>
       </section>
 
-      <section id="qrCodeContainer" class="presenter-qr" aria-live="polite" hidden>
-        <p>Skanna för att öppna frågesidan på mobilen.</p>
+      <section class="qr-region" id="qrCodeRegion" aria-live="polite" hidden>
       </section>
 
-      <section class="presenter-stage">
-        <div class="presenter-empty" id="noQuestions">
-          <div>
-            <p>Inga frågor än. När någon skickar in en fråga visas den här direkt.</p>
-          </div>
+      <section class="presenter-stage" aria-label="Question list">
+        <div id="emptyState" class="empty-state-wrap" hidden>
+          <p class="empty-state">Inga frågor än. När någon skickar in en fråga visas den här direkt.</p>
         </div>
-        <div id="questionsContainer" class="presenter-questions" aria-live="polite"></div>
+
+        <div class="questions-layout" id="questionsLayout">
+          <section class="questions-wall">
+            <div class="question-list" id="questionList" aria-live="polite"></div>
+          </section>
+        </div>
       </section>
     </main>
 
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script>
-      const questionsContainer = document.getElementById('questionsContainer')
-      const noQuestionsEl = document.getElementById('noQuestions')
+      const emptyState = document.getElementById('emptyState')
+      const questionsLayout = document.getElementById('questionsLayout')
+      const questionList = document.getElementById('questionList')
       const connectionStatus = document.getElementById('connectionStatus')
       const questionCountEl = document.getElementById('questionCount')
       const clearBtn = document.getElementById('clearBtn')
       const themeToggle = document.getElementById('themeToggle')
       const fontSizeBtn = document.getElementById('fontSizeBtn')
       const qrToggleBtn = document.getElementById('qrToggleBtn')
-      const qrCodeContainer = document.getElementById('qrCodeContainer')
+      const qrCodeRegion = document.getElementById('qrCodeRegion')
       const presenterStatus = document.querySelector('.connection-badge')
+      const STORAGE_KEY = 'ai-menti.presenter-state'
 
       let isDarkMode = false
       let fontSizeMode = 'normal'
       let questionCount = 0
       let qrCodeGenerated = false
+      let questions = []
+      let questionIdCounter = 0
+      let newestQuestionId = null
+      let askPageUrl = getAskPageUrl()
+
+      restorePresenterState()
+      renderQuestions()
+      applyPresenterPreferences()
 
       const client = mqtt.connect('wss://broker.emqx.io:8084/mqtt')
 
@@ -122,76 +118,282 @@
       })
 
       function addQuestion(text) {
-        noQuestionsEl.hidden = true
+        const question = {
+          id: createQuestionId(),
+          text,
+          receivedAt: getCurrentTimeLabel(),
+          isAnswered: false,
+          isActive: false,
+        }
 
+        questions.unshift(question)
+        newestQuestionId = question.id
+        savePresenterState()
+        renderQuestions()
+      }
+
+      function renderQuestions() {
+        questionList.innerHTML = ''
+
+        questions.forEach((question) => {
+          const questionItem = document.createElement('article')
+          questionItem.className = 'question-card'
+          questionItem.dataset.questionId = question.id
+          questionItem.tabIndex = 0
+
+          if (question.isAnswered) {
+            questionItem.classList.add('is-answered')
+          }
+
+          if (question.isActive) {
+            questionItem.classList.add('is-active')
+          }
+
+          if (question.id === newestQuestionId) {
+            questionItem.dataset.new = 'true'
+            window.setTimeout(() => {
+              questionItem.dataset.new = 'false'
+            }, 2400)
+          }
+
+          const questionTop = document.createElement('div')
+          questionTop.className = 'question-card__top'
+
+          const questionContent = document.createElement('div')
+          questionContent.className = 'question-content'
+
+          const questionState = document.createElement('p')
+          questionState.className = 'question-state'
+          questionContent.appendChild(questionState)
+
+          const questionBody = document.createElement('p')
+          questionBody.className = 'question-body'
+          questionBody.textContent = question.text
+          questionContent.appendChild(questionBody)
+
+          const actionGroup = document.createElement('div')
+          actionGroup.className = 'question-actions'
+
+          const doneButton = document.createElement('button')
+          doneButton.className = 'question-done'
+          doneButton.setAttribute('type', 'button')
+          doneButton.textContent = 'Klar'
+
+          const removeButton = document.createElement('button')
+          removeButton.className = 'question-remove'
+          removeButton.setAttribute('type', 'button')
+          removeButton.setAttribute('aria-label', 'Ta bort fråga')
+          removeButton.textContent = 'Ta bort'
+
+          actionGroup.appendChild(doneButton)
+          actionGroup.appendChild(removeButton)
+
+          questionTop.appendChild(questionContent)
+          questionTop.appendChild(actionGroup)
+          questionItem.appendChild(questionTop)
+
+          const questionMeta = document.createElement('div')
+          questionMeta.className = 'question-meta'
+          questionMeta.textContent = question.receivedAt
+          questionItem.appendChild(questionMeta)
+
+          doneButton.addEventListener('click', (event) => {
+            event.stopPropagation()
+            markQuestionAnswered(question.id)
+          })
+
+          removeButton.addEventListener('click', (event) => {
+            event.stopPropagation()
+            removeQuestion(question.id)
+          })
+
+          questionItem.addEventListener('click', () => {
+            setActiveQuestion(question.id)
+          })
+
+          questionItem.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              setActiveQuestion(question.id)
+            }
+          })
+
+          questionList.appendChild(questionItem)
+        })
+
+        newestQuestionId = null
+        syncQuestionLayout()
+      }
+
+      function createQuestionId() {
+        questionIdCounter += 1
+        return 'q-' + Date.now() + '-' + questionIdCounter
+      }
+
+      function getCurrentTimeLabel() {
         const now = new Date()
-        const timeStr = now.toLocaleTimeString([], {
+        return now.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
         })
+      }
 
-        const questionEl = document.createElement('article')
-        questionEl.className = 'presenter-question'
+      function setActiveQuestion(questionId) {
+        questions = questions.map((question) => {
+          if (question.id === questionId) {
+            return {
+              ...question,
+              isActive: true,
+              isAnswered: false,
+            }
+          }
 
-        const bodyEl = document.createElement('p')
-        bodyEl.className = 'presenter-question-body'
-        bodyEl.textContent = text
-        questionEl.appendChild(bodyEl)
-
-        const metaEl = document.createElement('div')
-        metaEl.className = 'presenter-question-meta'
-        metaEl.innerHTML =
-          '<i class="fas fa-clock" aria-hidden="true"></i><span>Inkommen ' +
-          timeStr +
-          '</span>'
-        questionEl.appendChild(metaEl)
-
-        const deleteBtn = document.createElement('button')
-        deleteBtn.className = 'presenter-delete'
-        deleteBtn.setAttribute('type', 'button')
-        deleteBtn.setAttribute('aria-label', 'Ta bort fråga')
-        deleteBtn.innerHTML = '<i class="fas fa-trash" aria-hidden="true"></i>'
-        questionEl.appendChild(deleteBtn)
-
-        deleteBtn.addEventListener('click', (event) => {
-          event.stopPropagation()
-          questionEl.remove()
-          questionCount--
-          questionCountEl.textContent = questionCount
-
-          if (questionCount === 0) {
-            noQuestionsEl.hidden = false
+          return {
+            ...question,
+            isActive: false,
           }
         })
 
-        questionEl.addEventListener('click', () => {
-          questionEl.classList.toggle('is-answered')
+        savePresenterState()
+        renderQuestions()
+      }
+
+      function markQuestionAnswered(questionId) {
+        questions = questions.map((question) => {
+          if (question.id === questionId) {
+            return {
+              ...question,
+              isActive: false,
+              isAnswered: true,
+            }
+          }
+
+          return question
         })
 
-        questionsContainer.prepend(questionEl)
-        questionCount++
-        questionCountEl.textContent = questionCount
+        const nextQuestion = questions.find((question) => !question.isAnswered && question.id !== questionId)
+
+        if (nextQuestion) {
+          questions = questions.map((question) => ({
+            ...question,
+            isActive: question.id === nextQuestion.id,
+          }))
+        }
+
+        savePresenterState()
+        renderQuestions()
+      }
+
+      function removeQuestion(questionId) {
+        questions = questions.filter((question) => question.id !== questionId)
+        savePresenterState()
+        renderQuestions()
       }
 
       qrToggleBtn.addEventListener('click', () => {
-        if (qrCodeContainer.hidden) {
-          qrCodeContainer.hidden = false
-
-          if (!qrCodeGenerated) {
-            generateQRCode()
-            qrCodeGenerated = true
-          }
-
-          qrToggleBtn.innerHTML =
-            '<i class="fas fa-times" aria-hidden="true"></i> Dölj QR-kod'
+        if (qrCodeRegion.hidden) {
+          showQrRegion()
         } else {
-          qrCodeContainer.hidden = true
-          qrToggleBtn.innerHTML =
-            '<i class="fas fa-qrcode" aria-hidden="true"></i> Visa QR-kod'
+          hideQrRegion()
         }
+
+        savePresenterState()
       })
 
       function generateQRCode() {
+        new QRCode(qrCodeRegion, {
+          text: askPageUrl,
+          width: 256,
+          height: 256,
+          colorDark: '#12332e',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.H,
+        })
+      }
+
+      clearBtn.addEventListener('click', () => {
+        questions = []
+        savePresenterState()
+        renderQuestions()
+      })
+
+      themeToggle.addEventListener('click', () => {
+        if (isDarkMode) {
+          isDarkMode = false
+        } else {
+          isDarkMode = true
+        }
+
+        applyPresenterPreferences()
+        savePresenterState()
+      })
+
+      fontSizeBtn.addEventListener('click', () => {
+        if (fontSizeMode === 'normal') {
+          fontSizeMode = 'large'
+        } else if (fontSizeMode === 'large') {
+          fontSizeMode = 'small'
+        } else {
+          fontSizeMode = 'normal'
+        }
+
+        applyPresenterPreferences()
+        savePresenterState()
+      })
+
+      function syncQuestionLayout() {
+        const totalQuestions = questions.length
+        questionCount = totalQuestions
+        questionCountEl.textContent = String(totalQuestions)
+        emptyState.hidden = totalQuestions !== 0
+        questionsLayout.hidden = totalQuestions === 0
+
+        if (totalQuestions === 0) {
+          showQrRegion()
+        }
+      }
+
+      function applyPresenterPreferences() {
+        document.body.classList.toggle('dark-mode', isDarkMode)
+        document.body.dataset.fontSize = fontSizeMode
+        themeToggle.textContent = isDarkMode ? 'Ljust läge' : 'Mörkt läge'
+        fontSizeBtn.dataset.size = fontSizeMode
+        fontSizeBtn.textContent =
+          fontSizeMode === 'large'
+            ? 'Textstorlek: L'
+            : fontSizeMode === 'small'
+              ? 'Textstorlek: S'
+              : 'Textstorlek: M'
+
+        if (!qrCodeRegion.hidden && !qrCodeGenerated) {
+          generateQRCode()
+          qrCodeGenerated = true
+        }
+
+        if (qrCodeRegion.hidden) {
+          qrToggleBtn.textContent = 'Anslut publik'
+        } else {
+          qrToggleBtn.textContent = 'Dölj publiklänk'
+        }
+      }
+
+      function showQrRegion() {
+        qrCodeRegion.hidden = false
+
+        if (!qrCodeGenerated) {
+          generateQRCode()
+          qrCodeGenerated = true
+        }
+
+        qrToggleBtn.textContent = 'Dölj publiklänk'
+      }
+
+      function hideQrRegion() {
+        qrCodeRegion.hidden = true
+        qrToggleBtn.textContent = 'Anslut publik'
+      }
+
+      function getAskPageUrl() {
         let currentUrl = window.location.href
         const lastSlashIndex = currentUrl.lastIndexOf('/')
 
@@ -199,55 +401,44 @@
           currentUrl = currentUrl.substring(0, lastSlashIndex + 1) + 'ask.html'
         }
 
-        new QRCode(qrCodeContainer, {
-          text: currentUrl,
-          width: 256,
-          height: 256,
-          colorDark: '#12332e',
-          colorLight: '#ffffff',
-          correctLevel: QRCode.CorrectLevel.H,
-        })
-
-        qrCodeContainer.addEventListener('click', () => {
-          qrCodeContainer.hidden = true
-          qrToggleBtn.innerHTML =
-            '<i class="fas fa-qrcode" aria-hidden="true"></i> Visa QR-kod'
-        })
+        return currentUrl
       }
 
-      clearBtn.addEventListener('click', () => {
-        questionsContainer.innerHTML = ''
-        noQuestionsEl.hidden = false
-        questionCount = 0
-        questionCountEl.textContent = '0'
-      })
-
-      themeToggle.addEventListener('click', () => {
-        if (isDarkMode) {
-          document.body.classList.remove('dark-mode')
-          themeToggle.innerHTML =
-            '<i class="fas fa-moon" aria-hidden="true"></i> Mörkt läge'
-          isDarkMode = false
-        } else {
-          document.body.classList.add('dark-mode')
-          themeToggle.innerHTML =
-            '<i class="fas fa-sun" aria-hidden="true"></i> Ljust läge'
-          isDarkMode = true
+      function savePresenterState() {
+        const state = {
+          isDarkMode,
+          fontSizeMode,
+          isQrVisible: !qrCodeRegion.hidden,
+          questions,
+          questionIdCounter,
         }
-      })
 
-      fontSizeBtn.addEventListener('click', () => {
-        if (fontSizeMode === 'normal') {
-          document.body.dataset.fontSize = 'large'
-          fontSizeMode = 'large'
-        } else if (fontSizeMode === 'large') {
-          document.body.dataset.fontSize = 'small'
-          fontSizeMode = 'small'
-        } else {
-          document.body.dataset.fontSize = 'normal'
-          fontSizeMode = 'normal'
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
+      }
+
+      function restorePresenterState() {
+        const savedState = localStorage.getItem(STORAGE_KEY)
+
+        if (!savedState) {
+          return
         }
-      })
+
+        try {
+          const parsedState = JSON.parse(savedState)
+          isDarkMode = parsedState.isDarkMode === true
+          fontSizeMode =
+            parsedState.fontSizeMode === 'large' || parsedState.fontSizeMode === 'small'
+              ? parsedState.fontSizeMode
+              : 'normal'
+          qrCodeRegion.hidden = parsedState.isQrVisible !== true
+          questions = Array.isArray(parsedState.questions) ? parsedState.questions : []
+          questionIdCounter = Number.isInteger(parsedState.questionIdCounter)
+            ? parsedState.questionIdCounter
+            : 0
+        } catch (error) {
+          console.error('Kunde inte läsa sparat presentatörsläge', error)
+        }
+      }
     </script>
   </body>
 </html>
