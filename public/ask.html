@@ -17,6 +17,9 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="ask-page">
+    <strong class="connection-badge ask-connection-badge" data-state="disconnected" aria-live="polite">
+      <span id="connectionText">Ansluter...</span>
+    </strong>
     <main class="ask-layout">
       <header class="ask-hero">
         <p class="eyebrow">Livefråga</p>
@@ -36,9 +39,6 @@
           </div>
           <div class="ask-meta">
             <span class="ask-count"><span id="charCount">0</span>/200</span>
-            <strong class="connection-badge" data-state="disconnected" aria-live="polite">
-              <span id="connectionText">Ansluter...</span>
-            </strong>
           </div>
           <div id="statusMessage" class="status-message" aria-live="polite"></div>
           <button class="button-primary ask-submit" type="submit" id="submitBtn" disabled>Skicka</button>
